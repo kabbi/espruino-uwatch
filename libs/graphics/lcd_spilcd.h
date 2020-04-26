@@ -17,5 +17,6 @@ void lcdInit_SPILCD(JsGraphics *gfx);
 void lcdSetCallbacks_SPILCD(JsGraphics *gfx);
 
 void lcdFlip_SPILCD(JsGraphics *gfx); // run this to flip the offscreen buffer to the screen
+void lcdSetPixel_SPILCD(JsGraphics *gfx, int x, int y, unsigned int color); // run this to flip the offscreen buffer to the screen
 void lcdCmd_SPILCD(int cmd, int dataLen, const char *data); // to send specific commands to the display
 void lcdSetPalette_SPILCD(const char *pal);

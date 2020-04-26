@@ -109,7 +109,7 @@ void lcd_wr(int data) {
   }
 }
 #endif
-#if defined(LCD_CONTROLLER_ST7789V) || defined(LCD_CONTROLLER_ST7735)
+#if defined(LCD_CONTROLLER_ST7789V) || defined(LCD_CONTROLLER_ST7735) || defined(LCD_CONTROLLER_ST7789U)
 
 void lcd_pixel(int x, int y) {
   // each byte is horizontal

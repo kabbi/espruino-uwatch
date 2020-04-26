@@ -848,8 +848,8 @@ void jsiSemiInit(bool autoLoad) {
     }
 #ifdef USE_TERMINAL
     if (consoleDevice != EV_TERMINAL) // don't spam the terminal
-#endif
       jsiConsolePrint("\n"); // output new line
+#endif
     inputLineRemoved = true; // we need to put the input line back...
   }
 }

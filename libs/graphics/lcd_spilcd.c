@@ -15,6 +15,7 @@
 #include "platform_config.h"
 #include "jsutils.h"
 #include "jshardware.h"
+#include "jsinteractive.h"
 #include "lcd_spilcd.h"
 #include "lcd_spilcd_info.h"
 #include "lcd_spilcd_palette.h"
@@ -22,11 +23,12 @@
 // ======================================================================
 
 #define LCD_STRIDE ((LCD_WIDTH*LCD_BPP+7)>>3)
-unsigned char lcdBuffer[LCD_STRIDE*LCD_HEIGHT];
 #if LCD_BPP==4
+unsigned char lcdBuffer[LCD_STRIDE*LCD_HEIGHT];
 unsigned short lcdPalette[16];
 #endif
 #if LCD_BPP==8
+unsigned char lcdBuffer[LCD_STRIDE*LCD_HEIGHT];
 unsigned short lcdPalette[256];
 #endif
 
@@ -61,7 +63,12 @@ void lcdSendInitCmd_SPILCD() {
   }
 }
 void lcdSetPalette_SPILCD(const char *pal) {
+#if LCD_BPP==4
   memcpy(lcdPalette, pal ? pal : SPILCD_PALETTE, sizeof(lcdPalette));
+#endif
+#if LCD_BPP==8
+  memcpy(lcdPalette, pal ? pal : SPILCD_PALETTE, sizeof(lcdPalette));
+#endif
 }
 
 // ======================================================================
@@ -77,6 +84,9 @@ unsigned int lcdGetPixel_SPILCD(JsGraphics *gfx, int x, int y) {
   int addr = x + (y*LCD_WIDTH);
   return lcdBuffer[addr];
 #endif
+#if LCD_BPP==16
+  return 0;
+#endif
 }
 
 
@@ -90,6 +100,36 @@ void lcdSetPixel_SPILCD(JsGraphics *gfx, int x, int y, unsigned int col) {
   int addr = x + (y*LCD_WIDTH);
   lcdBuffer[addr] = col;
 #endif
+#if LCD_BPP==16
+  unsigned char buffer[4];
+  jshPinSetValue(LCD_SPI_CS, 0);
+  jshPinSetValue(LCD_SPI_DC, 0); // command
+  buffer[0] = SPILCD_CMD_WINDOW_X;
+  jshSPISendMany(LCD_SPI, buffer, NULL, 1, NULL);
+  jshPinSetValue(LCD_SPI_DC, 1); // data
+  buffer[0] = 0;
+  buffer[1] = x;
+  buffer[2] = 0;
+  buffer[3] = x;
+  jshSPISendMany(LCD_SPI, buffer, NULL, 4, NULL);
+  jshPinSetValue(LCD_SPI_DC, 0); // command
+  buffer[0] = SPILCD_CMD_WINDOW_Y;
+  jshSPISendMany(LCD_SPI, buffer, NULL, 1, NULL);
+  jshPinSetValue(LCD_SPI_DC, 1); // data
+  buffer[0] = 0;
+  buffer[1] = y;
+  buffer[2] = 0;
+  buffer[3] = y;
+  jshSPISendMany(LCD_SPI, buffer, NULL, 4, NULL);
+  jshPinSetValue(LCD_SPI_DC, 0); // command
+  buffer[0] = SPILCD_CMD_DATA;
+  jshSPISendMany(LCD_SPI, buffer, NULL, 1, NULL);
+  jshPinSetValue(LCD_SPI_DC, 1); // data
+  buffer[0] = col >> 8;
+  buffer[1] = col;
+  jshSPISendMany(LCD_SPI, buffer, NULL, 2, NULL);
+  jshPinSetValue(LCD_SPI_CS, 1);
+#endif
 }
 
 void lcdFlip_SPILCD_callback() {
@@ -97,6 +137,7 @@ void lcdFlip_SPILCD_callback() {
 }
 
 void lcdFlip_SPILCD(JsGraphics *gfx) {
+  return;
   if (gfx->data.modMinX > gfx->data.modMaxX) return; // nothing to do!
 
   unsigned char buffer1[LCD_WIDTH*2]; // 16 bits per pixel
@@ -152,9 +193,11 @@ void lcdFlip_SPILCD(JsGraphics *gfx) {
       unsigned int a = lcdPalette[*(px++)];
       unsigned int b = lcdPalette[*(px++)];
 #endif
+#if LCD_BPP<16
       *(bufPtr++) = a>>4;
       *(bufPtr++) = (a<<4) | (b>>8);
       *(bufPtr++) = b;
+#endif
     }
     size_t len = ((unsigned char*)bufPtr)-buffer;
     jshSPISendMany(LCD_SPI, buffer, 0, len, lcdFlip_SPILCD_callback);
@@ -174,14 +217,14 @@ void lcdInit_SPILCD(JsGraphics *gfx) {
   gfx->data.height = LCD_HEIGHT;
   gfx->data.bpp = LCD_BPP;
 
-  lcdSetPalette_SPILCD(0);
+  /* lcdSetPalette_SPILCD(0); */
 
-  jshPinOutput(LCD_BL,0); // backlight on
-  jshPinOutput(LCD_SPI_CS,1);
-  jshPinOutput(LCD_SPI_DC,1);
-  jshPinOutput(LCD_SPI_SCK,1);
-  jshPinOutput(LCD_SPI_MOSI,1);
-  jshPinOutput(LCD_SPI_RST,1);
+  jshPinOutput(LCD_BL, 0);
+  jshPinOutput(LCD_SPI_CS, 1);
+  jshPinOutput(LCD_SPI_DC, 1);
+  jshPinOutput(LCD_SPI_SCK, 1);
+  jshPinOutput(LCD_SPI_MOSI, 1);
+  jshPinOutput(LCD_SPI_RST, 0);
   jshDelayMicroseconds(10000);
   jshPinOutput(LCD_SPI_RST, 1);
   jshDelayMicroseconds(10000);
@@ -199,6 +242,5 @@ void lcdInit_SPILCD(JsGraphics *gfx) {
 void lcdSetCallbacks_SPILCD(JsGraphics *gfx) {
   gfx->setPixel = lcdSetPixel_SPILCD;
   gfx->getPixel = lcdGetPixel_SPILCD;
-  //gfx->idle = lcdIdle_PCD8544;
 }
 

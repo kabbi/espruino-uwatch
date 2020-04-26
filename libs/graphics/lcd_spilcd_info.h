@@ -65,3 +65,34 @@ const unsigned char SPILCD_CMD_WINDOW_X = 0x2A;
 const unsigned char SPILCD_CMD_WINDOW_Y = 0x2B;
 const unsigned char SPILCD_CMD_DATA = 0x2C;
 #endif
+
+#ifdef LCD_CONTROLLER_ST7789U
+static const char SPILCD_INIT_CODE[] = {
+  // CMD,DELAY,DATA_LEN,D0,D1,D2...
+  0x11, 150, 0,     // SLPOUT, sleep out
+  0x3A, 0, 1, 0x55, // COLMOD, color format
+  0x36, 0, 1, 0x00, // MADCTL, memory data access control
+  0x21, 0, 0,      // INVON, display inversion on
+  // 0x2a, 0, 4, 0, 0, 0x00, 0xf0,
+  // 0x2b, 0, 4, 0, 0, 0x01, 0x40,
+  // 0xE7, 0, 1, 0x00, // SPI2EN, spi2 enable
+  // 0xB2, 0, 5, 0x0C, 0x0C, 0x00, 0x33, 0x33, // PORCTRL, porch setting
+  // 0xB7, 0, 1, 0x22, // GCTRL, gate control
+  // 0xBB, 0, 1, 0x2A, // VCOMS, vcom settings
+  // 0xC0, 0, 1, 0x2C, // LCMCTRL, lcm control
+  // 0xC2, 0, 1, 0x01, // VDVVRHEN, vdv and vrh command enable
+  // 0xC3, 0, 1, 0x02, // VHRS, vhr set
+  // 0xC4, 0, 1, 0x20, // VDVS, vdv set
+  // 0xC6, 0, 1, 0x0F, // FRCTRL2, frame rate control in normal mode
+  // 0xD0, 0, 2, 0xA4, 0xA1, // PWCTRL1, power control 1
+  // 0xE9, 0, 3, 0x11, 0x03, 0x00, // EQCTRL, equalize time control
+  // 0xE0, 0, 14, 0xD0, 0x08, 0x0E, 0x0A, 0x0A, 0x06, 0x38, 0x44, 0x50, 0x29, 0x15, 0x16, 0x33, 0x36, // PVGAMCTRL, postivie voltage gamma control
+  // 0xE1, 0, 14, 0xD0, 0x07, 0x0D, 0x09, 0x08, 0x06, 0x33, 0x33, 0x4D, 0x28, 0x16, 0x15, 0x33, 0x35, // NVGAMCTRL, negative voltage gamma control
+  // 0x13, 150, 0,     // NORON, normal mode on
+  0x29, 150, 0,     // DISPON, display on
+  0, 0, 255
+};
+const unsigned char SPILCD_CMD_WINDOW_X = 0x2A;
+const unsigned char SPILCD_CMD_WINDOW_Y = 0x2B;
+const unsigned char SPILCD_CMD_DATA = 0x2C;
+#endif

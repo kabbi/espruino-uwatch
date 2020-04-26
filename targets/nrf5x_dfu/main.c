@@ -144,8 +144,8 @@ bool dfu_enter_check(void) {
         }
 #endif
       } else {
-        lcd_clear();
-        lcd_println("DFU START");
+        //lcd_clear();
+        //lcd_println("DFU START");
       }
       set_led_state(true, true);
     }
