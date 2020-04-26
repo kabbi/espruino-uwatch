@@ -182,7 +182,7 @@ void jswrap_uwatch_setLCDPower(bool isOn) {
     jshPinOutput(LCD_BL, 1); // backlight
   }
   if (lcdPowerOn != isOn) {
-    JsVar *bangle =jsvObjectGetChild(execInfo.root, "Uwatch", 0);
+    JsVar *bangle = jsvObjectGetChild(execInfo.root, "Uwatch", 0);
     if (bangle) {
       JsVar *v = jsvNewFromBool(isOn);
       jsiQueueObjectCallbacks(bangle, JS_EVENT_PREFIX"lcdPower", &v, 1);
@@ -339,14 +339,14 @@ void jswrap_uwatch_init() {
 
   // Set up I2C
   i2cBusy = true;
-  /* jshI2CInitInfo(&internalI2C); */
-  /* internalI2C.bitrate = 0x7FFFFFFF; // make it as fast as we can go */
-  /* internalI2C.pinSDA = ACCEL_PIN_SDA; */
-  /* internalI2C.pinSCL = ACCEL_PIN_SCL; */
-  /* jshPinSetValue(internalI2C.pinSCL, 1); */
-  /* jshPinSetState(internalI2C.pinSCL, JSHPINSTATE_GPIO_OUT_OPENDRAIN_PULLUP); */
-  /* jshPinSetValue(internalI2C.pinSDA, 1); */
-  /* jshPinSetState(internalI2C.pinSDA, JSHPINSTATE_GPIO_OUT_OPENDRAIN_PULLUP); */
+  jshI2CInitInfo(&internalI2C);
+  internalI2C.bitrate = 0x7FFFFFFF; // make it as fast as we can go
+  internalI2C.pinSDA = ACCEL_PIN_SDA;
+  internalI2C.pinSCL = ACCEL_PIN_SCL;
+  jshPinSetValue(internalI2C.pinSCL, 1);
+  jshPinSetState(internalI2C.pinSCL, JSHPINSTATE_GPIO_OUT_OPENDRAIN_PULLUP);
+  jshPinSetValue(internalI2C.pinSDA, 1);
+  jshPinSetState(internalI2C.pinSDA, JSHPINSTATE_GPIO_OUT_OPENDRAIN_PULLUP);
 
   lcdPowerOn = true;
   // Create backing graphics for LCD
@@ -355,10 +355,8 @@ void jswrap_uwatch_init() {
   JsGraphics gfx;
   graphicsStructInit(&gfx, LCD_WIDTH, LCD_HEIGHT, LCD_BPP);
   gfx.data.type = JSGRAPHICSTYPE_SPILCD;
-  gfx.data.flags = JSGRAPHICSFLAGS_INVERT_X | JSGRAPHICSFLAGS_INVERT_Y;
   gfx.graphicsVar = graphics;
 
-  //gfx.data.fontSize = JSGRAPHICS_FONTSIZE_6X8;
   lcdInit_SPILCD(&gfx);
   graphicsSetVar(&gfx);
   jsvObjectSetChild(execInfo.root, "g", graphics);
