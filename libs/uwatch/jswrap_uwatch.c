@@ -32,6 +32,7 @@
 #include "nrf5x_utils.h"
 #include "jsflash.h" // for jsfRemoveCodeFromFlash
 #include "bluetooth.h" // for self-test
+#include "jsi2c.h" // accelerometer/etc
 
 #include "jswrap_graphics.h"
 #include "lcd_spilcd.h"
@@ -64,6 +65,15 @@ The Bangle.js's vibration motor.
 }
 Has the screen been turned on or off? Can be used to stop tasks that are no longer useful if nothing is displayed.
 */
+/*JSON{
+  "type" : "event",
+  "class" : "Uwatch",
+  "name" : "touch",
+  "params" : [["data","JsVar","`{gesture, x, y}`"]],
+  "ifdef" : "UWATCH"
+}
+Emitted when the touchscreen is touched.
+*/
 
 #define BTN1_LOAD_TIMEOUT 1500 // in msec
 #define TIMER_MAX 60000 // 60 sec - enough to fit in uint16_t without overflow if we add ACCEL_POLL_INTERVAL
@@ -75,8 +85,6 @@ bool i2cBusy;
 volatile uint16_t pollInterval; // in ms
 /// counter that counts up if watch has stayed face up or down
 volatile unsigned char faceUpCounter;
-/// Was the watch face-up? we use this when firing events
-volatile bool wasFaceUp;
 /// time since LCD contents were last modified
 volatile uint16_t flipTimer; // in ms
 /// How long has BTN1 been held down for
@@ -91,10 +99,18 @@ JsVar *promiseBuzz;
 /// Promise when pressure is requested
 JsVar *promisePressure;
 
+typedef struct {
+  uint8_t gesture;
+  uint8_t x;
+  uint8_t y;
+} JsTouchEvent;
+JsTouchEvent lastTouchEvent;
+
 typedef enum {
   JSBT_NONE,
   JSBT_LCD_ON = 1,
   JSBT_LCD_OFF = 2,
+  JSBT_TOUCH_EVENT = 4,
   JSBT_RESET = 128, ///< reset the watch and reload code from flash
 } JsBangleTasks;
 JsBangleTasks bangleTasks;
@@ -160,6 +176,22 @@ void peripheralPollHandler() {
     bangleTasks |= JSBT_LCD_OFF;
   }
   //jshPinOutput(LED1_PININDEX, 0);
+}
+
+void touchInterruptHandler(bool state, IOEventFlags flags) {
+  // Trigger only on falling edge
+  if (state) {
+    return;
+  }
+
+  unsigned char buf[6];
+  buf[0] = 0x01; // read 6 bytes starting from second
+  jsi2cWrite(&internalI2C, TOUCH_ADDR, 1, buf, false);
+  jsi2cRead(&internalI2C, TOUCH_ADDR, 6, buf, true);
+  lastTouchEvent.gesture = buf[0];
+  lastTouchEvent.x = ((buf[2] & 0xf) << 8) | buf[3];
+  lastTouchEvent.y = ((buf[4] & 0xf) << 8) | buf[5];
+  bangleTasks |= JSBT_TOUCH_EVENT;
 }
 
 /*JSON{
@@ -388,6 +420,10 @@ void jswrap_uwatch_init() {
   jsvUnLock(graphics);
 
   // Initialize touch controller
+  IOEventFlags channel;
+  jshSetPinShouldStayWatched(TOUCH_PIN_INTERRUPT, true);
+  channel = jshPinWatch(TOUCH_PIN_INTERRUPT, true);
+  if (channel != EV_NONE) jshSetEventCallback(channel, touchInterruptHandler);
   i2cBusy = false;
 
   // Add watchdog timer to ensure watch always stays usable (hopefully!)
@@ -424,6 +460,23 @@ bool jswrap_uwatch_idle() {
   if (bangleTasks & JSBT_LCD_ON) jswrap_uwatch_setLCDPower(1);
   if (bangleTasks & JSBT_RESET)
     jsiStatus |= JSIS_TODO_FLASH_LOAD;
+  if (bangleTasks & JSBT_TOUCH_EVENT) {
+    JsVar *o = jsvNewObject();
+    const char *string = "unknown";
+    if (lastTouchEvent.gesture == 0) string = "none";
+    if (lastTouchEvent.gesture == 1) string = "swipe-down";
+    if (lastTouchEvent.gesture == 2) string = "swipe-up";
+    if (lastTouchEvent.gesture == 3) string = "swipe-left";
+    if (lastTouchEvent.gesture == 4) string = "swipe-right";
+    if (lastTouchEvent.gesture == 5) string = "tap";
+    if (lastTouchEvent.gesture == 12) string = "long-press";
+    if (lastTouchEvent.gesture == 14) string = "home";
+    jsvObjectSetChildAndUnLock(o, "gesture", jsvNewFromString(string));
+    jsvObjectSetChildAndUnLock(o, "x", jsvNewFromInteger(lastTouchEvent.x));
+    jsvObjectSetChildAndUnLock(o, "y", jsvNewFromInteger(lastTouchEvent.y));
+    jsiQueueObjectCallbacks(bangle, JS_EVENT_PREFIX"touch", &o, 1);
+    jsvUnLock(o);
+  }
   jsvUnLock(bangle);
   bangleTasks = JSBT_NONE;
   return false;
