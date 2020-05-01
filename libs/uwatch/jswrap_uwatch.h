@@ -20,6 +20,8 @@ void jswrap_uwatch_setLCDPalette(JsVar *palette);
 void jswrap_uwatch_setPollInterval(JsVarFloat interval);
 void jswrap_uwatch_setGestureOptions(JsVar *options);
 bool jswrap_uwatch_isLCDOn();
+int jswrap_uwatch_accelRd(JsVarInt cmd);
+void jswrap_uwatch_accelWr(JsVarInt cmd, JsVarInt data);
 bool jswrap_uwatch_isCharging();
 JsVarInt jswrap_uwatch_getBattery();
 

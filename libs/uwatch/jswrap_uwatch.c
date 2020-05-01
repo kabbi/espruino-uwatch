@@ -10,7 +10,8 @@
  * ----------------------------------------------------------------------------
  * This file is designed to be parsed during the build process
  *
- * Contains JavaScript interface for Bangle.js (http://www.espruino.com/Bangle.js)
+ * Contains JavaScript interface for Uwatch2 (and probably lots of other
+ * chinese watches compatible with dafit software)
  * ----------------------------------------------------------------------------
  */
 
@@ -37,6 +38,8 @@
 #include "jswrap_graphics.h"
 #include "lcd_spilcd.h"
 #include "nmea.h"
+
+#include "accel_config.h"
 
 /*JSON{
   "type": "class",
@@ -68,6 +71,16 @@ Has the screen been turned on or off? Can be used to stop tasks that are no long
 /*JSON{
   "type" : "event",
   "class" : "Uwatch",
+  "name" : "accel",
+  "params" : [["xyz","JsVar","`{x,y,z}`"]],
+  "ifdef" : "UWATCH"
+}
+Accelerometer data available with `{x,y,z,diff,mag}` object as a parameter.
+You can also retrieve the most recent reading with `Bangle.getAccel()`.
+ */
+/*JSON{
+  "type" : "event",
+  "class" : "Uwatch",
   "name" : "touch",
   "params" : [["data","JsVar","`{gesture, x, y}`"]],
   "ifdef" : "UWATCH"
@@ -93,6 +106,8 @@ volatile uint16_t btn1Timer; // in ms
 int lcdPowerTimeout = 30*1000; // in ms
 /// Is the LCD on?
 bool lcdPowerOn;
+/// Current step counter
+uint32_t stepCounter;
 
 /// Promise when buzz is finished
 JsVar *promiseBuzz;
@@ -106,11 +121,18 @@ typedef struct {
 } JsTouchEvent;
 JsTouchEvent lastTouchEvent;
 
+typedef struct {
+  uint16_t intStatus;
+} JsAccelEvent;
+JsAccelEvent lastAccelEvent;
+
 typedef enum {
   JSBT_NONE,
   JSBT_LCD_ON = 1,
   JSBT_LCD_OFF = 2,
   JSBT_TOUCH_EVENT = 4,
+  JSBT_ACCEL_DATA = 8,
+  JSBT_STEP_EVENT = 16,
   JSBT_RESET = 128, ///< reset the watch and reload code from flash
 } JsBangleTasks;
 JsBangleTasks bangleTasks;
@@ -146,8 +168,7 @@ char clipi8(int x) {
  * Also, holding down both buttons will reboot */
 void peripheralPollHandler() {
   // Handle watchdog
-  /* if (!(jshPinGetValue(BTN1_PININDEX) && jshPinGetValue(BTN2_PININDEX))) */
-    jshKickWatchDog();
+  jshKickWatchDog();
 
   // Power on display if a button is pressed
   if (lcdPowerTimeout &&
@@ -176,6 +197,21 @@ void peripheralPollHandler() {
     bangleTasks |= JSBT_LCD_OFF;
   }
   //jshPinOutput(LED1_PININDEX, 0);
+
+  if (i2cBusy) {
+    return;
+  }
+
+  // Read steps
+  unsigned char buf[4];
+  buf[0] = 0x1E; // step counter 0
+  jsi2cWrite(&internalI2C, ACCEL_ADDR, 1, buf, false);
+  jsi2cRead(&internalI2C, ACCEL_ADDR, 4, buf, true);
+  uint32_t steps = (buf[3] << 24) | (buf[2] << 16) | (buf[1] << 8) | buf[0];
+  if (stepCounter != steps) {
+    bangleTasks |= JSBT_STEP_EVENT;
+    stepCounter = steps;
+  }
 }
 
 void touchInterruptHandler(bool state, IOEventFlags flags) {
@@ -192,6 +228,20 @@ void touchInterruptHandler(bool state, IOEventFlags flags) {
   lastTouchEvent.x = ((buf[2] & 0xf) << 8) | buf[3];
   lastTouchEvent.y = ((buf[4] & 0xf) << 8) | buf[5];
   bangleTasks |= JSBT_TOUCH_EVENT;
+}
+
+void accelInterruptHandler(bool state, IOEventFlags flags) {
+  // Trigger only on falling edge
+  if (state) {
+    return;
+  }
+
+  unsigned char buf[2];
+  buf[0] = 0x1C; // int0 status register
+  jsi2cWrite(&internalI2C, ACCEL_ADDR, 1, buf, false);
+  jsi2cRead(&internalI2C, ACCEL_ADDR, 2, buf, true);
+  lastAccelEvent.intStatus = (buf[0] << 8) | buf[1];
+  bangleTasks |= JSBT_ACCEL_DATA;
 }
 
 /*JSON{
@@ -358,6 +408,52 @@ void jswrap_uwatch_lcdWr(JsVarInt cmd, JsVar *data) {
 
 
 
+/*JSON{
+    "type" : "staticmethod",
+    "class" : "Uwatch",
+    "name" : "accelWr",
+    "generate" : "jswrap_uwatch_accelWr",
+    "params" : [
+      ["reg","int",""],
+      ["data","int",""]
+    ]
+}
+Writes a register on the KX023 Accelerometer
+*/
+void jswrap_uwatch_accelWr(JsVarInt reg, JsVarInt data) {
+  unsigned char buf[2];
+  buf[0] = (unsigned char)reg;
+  buf[1] = (unsigned char)data;
+  i2cBusy = true;
+  jsi2cWrite(&internalI2C, ACCEL_ADDR, 2, buf, true);
+  i2cBusy = false;
+}
+
+
+
+/*JSON{
+    "type" : "staticmethod",
+    "class" : "Uwatch",
+    "name" : "accelRd",
+    "generate" : "jswrap_uwatch_accelRd",
+    "params" : [
+      ["reg","int",""]
+    ],
+    "return" : ["int",""]
+}
+Reads a register from the KX023 Accelerometer
+*/
+int jswrap_uwatch_accelRd(JsVarInt reg) {
+  unsigned char buf[1];
+  buf[0] = (unsigned char)reg;
+  i2cBusy = true;
+  jsi2cWrite(&internalI2C, ACCEL_ADDR, 1, buf, true);
+  jsi2cRead(&internalI2C, ACCEL_ADDR, 1, buf, true);
+  i2cBusy = false;
+  return buf[0];
+}
+
+
 
 /*JSON{
   "type" : "init",
@@ -424,6 +520,51 @@ void jswrap_uwatch_init() {
   jshSetPinShouldStayWatched(TOUCH_PIN_INTERRUPT, true);
   channel = jshPinWatch(TOUCH_PIN_INTERRUPT, true);
   if (channel != EV_NONE) jshSetEventCallback(channel, touchInterruptHandler);
+
+  // Initialize accelerometer
+  jshSetPinShouldStayWatched(ACCEL_PIN_INTERRUPT, true);
+  channel = jshPinWatch(ACCEL_PIN_INTERRUPT, true);
+  if (channel != EV_NONE) jshSetEventCallback(channel, accelInterruptHandler);
+  jswrap_uwatch_accelWr(0x7E, 0xB6); // cmd, soft reset
+  jshDelayMicroseconds(50000);
+  jswrap_uwatch_accelWr(0x7C, 0x02); // power config, sleep disable
+  jshDelayMicroseconds(1000);
+  jswrap_uwatch_accelWr(0x59, 0); // init ctrl, disable config loading
+  for (int i = 0; i < sizeof(BMA421_CONFIG_FILE); i += 8) {
+    jswrap_uwatch_accelWr(0x5B, (i / 2));
+    jswrap_uwatch_accelWr(0x5C, (i / 2) >> 4);
+    unsigned char buf[9];
+    buf[0] = 0x5E;
+    for (int j = 0; j < 8; j++) {
+      buf[j + 1] = BMA421_CONFIG_FILE[i + j];
+    }
+    jsi2cWrite(&internalI2C, ACCEL_ADDR, 9, buf, true);
+    jshKickWatchDog();
+  }
+  jswrap_uwatch_accelWr(0x59, 1); // init ctrl, enable config loading
+  jshDelayMicroseconds(150000);
+  jswrap_uwatch_accelRd(0x2A); // should be 0x01 when config loading ok
+  jswrap_uwatch_accelWr(0x40, 0xA7); // accel config, ?
+  jswrap_uwatch_accelWr(0x41, 0x01); // accel range, range_4g
+  jswrap_uwatch_accelWr(0x7D, 0x05); // power control, accel enable, aux enable (??)
+  for (int i = 0; i < sizeof(BMA421_FEATURES); i += 8) {
+    int offset = 0x200 + i;
+    jswrap_uwatch_accelWr(0x5B, (offset / 2));
+    jswrap_uwatch_accelWr(0x5C, (offset / 2) >> 4);
+    unsigned char buf[9];
+    buf[0] = 0x5E;
+    for (int j = 0; j < 8; j++) {
+      buf[j + 1] = BMA421_FEATURES[i + j];
+    }
+    jsi2cWrite(&internalI2C, ACCEL_ADDR, 9, buf, true);
+  }
+  jswrap_uwatch_accelWr(0x7C, 0x03); // power config, fifo wakeup, sleep enable
+  jswrap_uwatch_accelWr(0x7D, 0x04); // power control, accel enable, aux disable
+  jswrap_uwatch_accelWr(0x56, 0x20); // int1 map, enable wakeup interrupt
+  jswrap_uwatch_accelWr(0x58, 0x00); // int map data, don't map anything
+  jswrap_uwatch_accelWr(0x53, 0x08); // int1 io control, enable int1 pin
+  jswrap_uwatch_accelWr(0x70, 0x06); // nvm config, i2c watchdog 40ms
+  jswrap_uwatch_accelWr(0x40, 0x27); // accel config, norm_avg4, 50hz
   i2cBusy = false;
 
   // Add watchdog timer to ensure watch always stays usable (hopefully!)
@@ -476,6 +617,17 @@ bool jswrap_uwatch_idle() {
     jsvObjectSetChildAndUnLock(o, "y", jsvNewFromInteger(lastTouchEvent.y));
     jsiQueueObjectCallbacks(bangle, JS_EVENT_PREFIX"touch", &o, 1);
     jsvUnLock(o);
+  }
+  if (bangleTasks & JSBT_ACCEL_DATA) {
+    JsVar *o = jsvNewObject();
+    jsvObjectSetChildAndUnLock(o, "status", jsvNewFromInteger(lastAccelEvent.intStatus));
+    jsiQueueObjectCallbacks(bangle, JS_EVENT_PREFIX"accel", &o, 1);
+    jsvUnLock(o);
+  }
+  if (bangleTasks & JSBT_STEP_EVENT) {
+    JsVar *steps = jsvNewFromInteger(stepCounter);
+    jsiQueueObjectCallbacks(bangle, JS_EVENT_PREFIX"step", &steps, 1);
+    jsvUnLock(steps);
   }
   jsvUnLock(bangle);
   bangleTasks = JSBT_NONE;

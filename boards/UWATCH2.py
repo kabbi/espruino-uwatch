@@ -91,9 +91,10 @@ devices = {
         'pin_bl': 'D23',
     },
     'ACCEL': {
-        'device': 'KX023', 'addr': 0x1e,
+        'device': 'KX023', 'addr': 0x18,
         'pin_sda': 'D6',
         'pin_scl': 'D7',
+        'pin_interrupt': 'D8',
     },
     'TOUCH': {
         'device': 'CST816S', 'addr': 0x15,
