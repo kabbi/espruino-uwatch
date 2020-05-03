@@ -259,7 +259,7 @@ void lcd_init() {
   jshPinSetValue(LCD_SPI_CS,1);
 }
 #endif
-#ifdef LCD_CONTROLLER_ST7789V
+#if defined(LCD_CONTROLLER_ST7789V) || defined(LCD_CONTROLLER_ST7789U)
 #define LCD_SPI 0
 
 void lcd_cmd(int cmd, int dataLen, char *data) {
@@ -313,8 +313,8 @@ void lcd_flip() {
   ymax=0;
 }
 void lcd_init() {
-  jshPinOutput(3,1); // general VDD power?
-  jshPinOutput(LCD_BL,1); // backlight
+  /* jshPinOutput(3,1); // general VDD power? */
+  jshPinOutput(LCD_BL,0); // backlight
   // LCD Init 1
   jshPinOutput(LCD_SPI_CS,1);
   jshPinOutput(LCD_SPI_DC,1);
@@ -338,10 +338,10 @@ void lcd_init() {
   jshDelayMicroseconds(10000);
   lcd_cmd(0x13, 0, NULL); // NORON
   jshDelayMicroseconds(10000);
-  lcd_cmd(0x36, 1, "\xC0"); // MADCTL
+  lcd_cmd(0x36, 1, "\x00"); // MADCTL
   jshDelayMicroseconds(10000);
-  lcd_cmd(0x37, 2, "\0\x50"); // VSCRSADD - vertical scroll
-  jshDelayMicroseconds(10000);
+  /* lcd_cmd(0x37, 2, "\0\x50"); // VSCRSADD - vertical scroll */
+  /* jshDelayMicroseconds(10000); */
   lcd_cmd(0x35, 0, NULL); // Tear on
   jshDelayMicroseconds(10000);
   lcd_cmd(0x29, 0, NULL); // DISPON
@@ -349,7 +349,7 @@ void lcd_init() {
 }
 
 void lcd_kill() {
-  jshPinOutput(LCD_BL,0);
+  jshPinOutput(LCD_BL,1);
   lcd_cmd(0xAE, 0, NULL); // DISPOFF
 }
 #endif

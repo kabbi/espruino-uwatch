@@ -23,6 +23,7 @@ bool jswrap_uwatch_isLCDOn();
 int jswrap_uwatch_accelRd(JsVarInt cmd);
 void jswrap_uwatch_accelWr(JsVarInt cmd, JsVarInt data);
 bool jswrap_uwatch_isCharging();
+void jswrap_uwatch_reboot();
 JsVarInt jswrap_uwatch_getBattery();
 
 JsVar *jswrap_uwatch_buzz(int time, JsVarFloat amt);

@@ -69,6 +69,9 @@ static void hardware_init(void) {
   // LED1 is backlight - don't use it, but ensure it's off
   jshPinOutput(LED1_PININDEX, 0);
 #endif
+#if defined(UWATCH2)
+  nrf_gpio_cfg_input(TOUCH_PIN_INTERRUPT, NRF_GPIO_PIN_PULLUP);
+#endif
   set_led_state(false, false);
 
   bool polarity;

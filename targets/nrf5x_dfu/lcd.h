@@ -29,10 +29,10 @@
 #define LCD_DATA_HEIGHT 96
 #define LCD_STORE_MODIFIED
 #endif
-#ifdef LCD_CONTROLLER_ST7735U // Uwatch
+#ifdef LCD_CONTROLLER_ST7789U // Uwatch
 #define LCD
-#define LCD_DATA_WIDTH 240
-#define LCD_DATA_HEIGHT 240
+#define LCD_DATA_WIDTH 120
+#define LCD_DATA_HEIGHT 120
 #define LCD_STORE_MODIFIED
 #endif
 #ifdef LCD_CONTROLLER_ST7789_8BIT // Bangle.js

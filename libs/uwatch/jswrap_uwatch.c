@@ -30,6 +30,7 @@
 #include "nrf_gpio.h"
 #include "nrf_delay.h"
 #include "nrf_soc.h"
+#include "nrf_nvic.h"
 #include "nrf5x_utils.h"
 #include "jsflash.h" // for jsfRemoveCodeFromFlash
 #include "bluetooth.h" // for self-test
@@ -453,6 +454,19 @@ int jswrap_uwatch_accelRd(JsVarInt reg) {
   return buf[0];
 }
 
+/*JSON{
+    "type" : "staticmethod",
+    "class" : "Uwatch",
+    "name" : "reboot",
+    "generate" : "jswrap_uwatch_reboot",
+    "params" : []
+}
+Reboot to bootloader
+*/
+void jswrap_uwatch_reboot() {
+  sd_power_gpregret_set(0, 0x42);
+  sd_nvic_SystemReset();
+}
 
 
 /*JSON{

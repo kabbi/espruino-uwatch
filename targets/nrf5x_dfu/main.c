@@ -91,13 +91,18 @@ bool nrf_dfu_enter_check(void) {
 bool dfu_enter_check(void) {
 #endif
   bool dfu_start = get_btn1_state();
-#ifdef BUTTONPRESS_TO_REBOOT_BOOTLOADER
-    // if DFU looks invalid, go straight to bootloader
-    if (s_dfu_settings.bank_0.bank_code == NRF_DFU_BANK_INVALID) {
-      lcd_println("BANK0 INVALID");
-      if (!dfu_start) return true;
-    }
-#endif
+
+  // if DFU looks invalid, go straight to bootloader
+  if (s_dfu_settings.bank_0.bank_code == NRF_DFU_BANK_INVALID) {
+    lcd_println("BANK0 INVALID\r\nENTERING DFU\r\n");
+    if (!dfu_start) return true;
+  }
+
+  if (NRF_POWER->GPREGRET == 0x42) {
+    lcd_print("APP REQUESTED DFU\r\nENTERING\r\n");
+    NRF_POWER->GPREGRET = 0;
+    return true;
+  }
 
     // If button is held down for 3 seconds, don't start bootloader.
     // This means that we go straight to Espruino, where the button is still
@@ -150,6 +155,23 @@ bool dfu_enter_check(void) {
       set_led_state(true, true);
     }
 
+#ifdef UWATCH2
+  // no buttons, wait for touch events for some time
+  lcd_print("TOUCH FOR DFU\r\n<                      >\r");
+  int count = 3000;
+  while (count) {
+    nrf_delay_us(999);
+    set_led_state((count&3)==0, false);
+    if ((count&127)==0) lcd_print("=");
+    if (jshPinGetValue(TOUCH_PIN_INTERRUPT) == 0) {
+      lcd_print("\r<======================>\r\n\r\nENTERING DFU\r\n");
+      dfu_start = true;
+      break;
+    }
+    count--;
+  }
+#endif
+
     if (!dfu_start) {
 #ifdef LCD
       lcd_println("\r\nBOOTING...");
@@ -170,7 +192,7 @@ bool dfu_enter_check(void) {
     return dfu_start;
 }
 
-#ifdef BUTTONPRESS_TO_REBOOT_BOOTLOADER
+#if defined(BUTTONPRESS_TO_REBOOT_BOOTLOADER) || defined(UWATCH2)
 APP_TIMER_DEF(m_reboot_timer_id);
 int rebootCounter = 0;
 
@@ -190,6 +212,11 @@ extern void dfu_set_status(DFUStatus status) {
   switch (status) {
   case DFUS_ADVERTISING_START:
     set_led_state(true,false);
+#ifdef UWATCH2
+    // Kick watchdog, when app requests bootloader watchdog stays on
+    app_timer_create(&m_reboot_timer_id, APP_TIMER_MODE_REPEATED, reboot_check_handler);
+    app_timer_start(m_reboot_timer_id, APP_TIMER_TICKS(100, 0), NULL);
+#endif
 #ifdef BUTTONPRESS_TO_REBOOT_BOOTLOADER
     uint32_t err_code;
     err_code = app_timer_create(&m_reboot_timer_id,
@@ -238,7 +265,7 @@ int main(void)
 
     (void) NRF_LOG_INIT(NULL);
 
-    NRF_LOG_INFO("Inside main\r\n");
+    NRF_LOG_INFO("Inside maian\r\n");
 
     hardware_init();
 
