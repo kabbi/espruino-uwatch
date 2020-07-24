@@ -22,7 +22,7 @@ info = {
     'default_console': "EV_BLUETOOTH",
     # How many variables are allocated for Espruino to use. RAM will be overflowed if this number is too high and code won't compile.
     'variables': 2100,
-    'bootloader': 0,
+    'bootloader': 1,
     'binary_name': 'espruino_%v_uwatch.hex',
     'build': {
         'optimizeflags': '-Os',
@@ -34,7 +34,6 @@ info = {
         ],
         'makefile': [
             'DEFINES += -DCONFIG_NFCT_PINS_AS_GPIOS',  # Allow the reset pin to work
-            'DEFINES += -DBUTTONPRESS_TO_REBOOT_BOOTLOADER',
             'DEFINES+=-DBLUETOOTH_NAME_PREFIX=\'"Uwatch2.js"\'',
             'DEFINES+=-DCUSTOM_GETBATTERY=jswrap_uwatch_getBattery',
             'DEFINES+=-DDUMP_IGNORE_VARIABLES=\'"g\\0"\'',
